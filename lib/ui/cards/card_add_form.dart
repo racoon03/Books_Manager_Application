@@ -49,12 +49,22 @@ class _AddFormState extends State<_AddForm> {
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final booksManager = context.read<BooksManager>();
       final membersManager = context.read<MembersManager>();
 
-      booksManager.fetchBooks();
-      membersManager.loadMembers();
+      // Bắt đầu tải dữ liệu
+      await Future.wait([
+        booksManager.fetchBooks(),
+        membersManager.loadMembers(),
+      ]);
+
+      // Sau khi dữ liệu tải xong
+      if (mounted) {
+        setState(() {
+          _isLoading = false; // Dừng hiển thị vòng tròn chờ
+        });
+      }
     });
   }
 
@@ -110,6 +120,7 @@ class _AddFormState extends State<_AddForm> {
       if (!_selectedBooks.any((book) => book['bookId'] == _selectedBook!.id)) {
         setState(() {
           _selectedBooks.add(selectedBook);
+          log('Book added: $selectedBook'); // Kiểm tra sách đã được thêm
         });
       } else {
         final index = _selectedBooks
@@ -132,6 +143,7 @@ class _AddFormState extends State<_AddForm> {
   Widget build(BuildContext context) {
     final membersManager = context.read<MembersManager>();
     final booksManager = context.read<BooksManager>();
+
     return Scaffold(
       body: SingleChildScrollView(
         child: Form(
@@ -140,29 +152,33 @@ class _AddFormState extends State<_AddForm> {
             children: [
               // Member ID Input
               Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: TextFormField(
-                      controller: _memberIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'Member ID',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter member ID';
-                        }
-                        return null;
-                      },
-                      onChanged: (text) {
-                        setState(() {
-                          if (text.isEmpty) {
-                            _selectedMember = null;
-                          } else {
-                            _selectedMember =
-                                membersManager.searchMembers(text);
-                          }
-                        });
-                      })),
+                padding: const EdgeInsets.all(8.0),
+                child: DropdownButtonFormField<Member>(
+                  value: _selectedMember, // Member được chọn
+                  decoration: const InputDecoration(
+                    labelText: 'Select Member',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: membersManager.members.map((member) {
+                    return DropdownMenuItem<Member>(
+                      value: member,
+                      child: Text(
+                          '${member.firstName} ${member.lastName}'), // Tên member
+                    );
+                  }).toList(),
+                  onChanged: (member) {
+                    setState(() {
+                      _selectedMember = member; // Cập nhật member được chọn
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null) {
+                      return 'Please select a member';
+                    }
+                    return null;
+                  },
+                ),
+              ),
 
               if (_selectedMember != null)
                 Padding(
@@ -188,28 +204,28 @@ class _AddFormState extends State<_AddForm> {
               // Book ID Input
               Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: TextFormField(
-                  controller: _bookIdController,
+                child: DropdownButtonFormField<Book>(
+                  value: _selectedBook, // Sách được chọn
                   decoration: const InputDecoration(
-                    labelText: 'Book ID',
+                    labelText: 'Select Book',
                     border: OutlineInputBorder(),
                   ),
+                  items: booksManager.books.map((book) {
+                    return DropdownMenuItem<Book>(
+                      value: book,
+                      child: Text(book.title), // Tên sách
+                    );
+                  }).toList(),
+                  onChanged: (book) {
+                    setState(() {
+                      _selectedBook = book; // Cập nhật sách được chọn
+                    });
+                  },
                   validator: (value) {
-                    if (value == null ||
-                        value.isEmpty && _selectedBooks.isEmpty) {
-                      return 'Please enter book ID';
+                    if (value == null) {
+                      return 'Please select a book';
                     }
                     return null;
-                  },
-                  onChanged: (text) {
-                    setState(() {
-                      if (text.isEmpty) {
-                        _selectedBook = null;
-                      } else {
-                        _selectedBook =
-                            booksManager.searchBooks(text); // Search book by ID
-                      }
-                    });
                   },
                 ),
               ),
